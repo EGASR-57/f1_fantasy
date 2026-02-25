@@ -1,0 +1,2 @@
+# SCRAPER
+A scraper to automatically retrieve info on pilots, constructors and points
