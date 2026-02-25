@@ -1,2 +1,7 @@
+20260225
+
+# CLASS STRUCTURE
+A class for drivers, and another one for constructors, linked.
+
 # SCRAPER
 A scraper to automatically retrieve info on pilots, constructors and points
