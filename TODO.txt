@@ -1,3 +1,11 @@
+20260305
+
+# INTRA-SEASON UPDATER
+There are limitations to the amount of changes that can be applied to the teams after each race.
+Current code is the one used to initiate the team, we need another function to maintain the team.
+Both should call the hypothetical scraper function.
+
+
 20260225
 
 # CLASS STRUCTURE

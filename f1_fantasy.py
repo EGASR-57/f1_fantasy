@@ -1,82 +1,69 @@
-from pulp import LpMaximize, LpProblem, LpVariable, lpSum
+from pulp import LpMaximize, LpProblem, LpVariable, lpSum, value
 
-# Define arrays
+# 1. DATA: 2026 Official Pricing & Market Valuation
 drivers = [
-    "Jack Doohan", "Pierre Gasly", "Fernando Alonso", "Lance Stroll", 
-    "Charles Leclerc", "Lewis Hamilton", "Esteban Ocon", "Oliver Bearman", 
-    "Lando Norris", "Oscar Piastri", "Andrea Kimi Antonelli", "George Russell", 
-    "Isack Hadjar", "Yuki Tsunoda", "Max Verstappen", "Liam Lawson", 
-    "Gabriel Bortoleto", "Nico Hulkenberg", "Alexander Albon", "Carlos Sainz Jr."
+    "Verstappen", "Russell", "Norris", "Piastri", "Antonelli", 
+    "Leclerc", "Hamilton", "Hadjar", "Gasly", "Sainz", 
+    "Albon", "Alonso", "Stroll", "Bearman", "Ocon", 
+    "Hulkenberg", "Lawson", "Bortoleto", "Lindblad", "Colapinto",
+    "Pérez", "Bottas"
 ]
-driver_costs = [
-    6, 10.6, 7.6, 9.3,
-    25.3, 23.6, 8.1, 6.7, 
-    29.6, 23, 19.3, 21.4,
-    5, 8.4, 28.6, 16.8, 
-    4.8, 7.6, 12.8, 11.9
-]
-driver_points = [
-    -9, -7, -36, 33,
-    0, 3, 32, 22, 
-    100, 55, 61, 60,
-    -9, 6, 59, 5, 
-    -11, 22, 28, -11
+costs = [
+    27.7, 27.4, 27.2, 25.5, 23.2, 22.8, 22.5, 15.1, 12.0, 11.8,
+    11.6, 10.0, 8.0, 7.4, 7.3, 6.8, 6.5, 6.4, 6.2, 6.2, 6.0, 5.9
 ]
 
 constructors = [
-    "Alpine", "Aston Martin", "Ferrari", "Haas", "McLaren", 
-    "Mercedes", "Racing Bulls", "Red Bull", "Kick Sauber", "Williams"
+    "Mercedes", "McLaren", "Red Bull", "Ferrari", "Alpine",
+    "Williams", "Aston Martin", "Haas", "Audi", "Racing Bulls", "Cadillac"
 ]
-constructor_costs = [
-    8.3, 7.3, 27.1, 8.2, 30.6, 
-    23.3, 8, 25.4, 6.2, 13.5
-]
-constructor_points = [
-    -20, 5, 13, 61, 172, 
-    136, 32, 86, 15, 36
-]
+c_costs = [29.3, 28.9, 28.2, 23.3, 12.5, 12.0, 10.3, 7.4, 6.6, 6.3, 6.0]
 
-# Create the optimization problem
-prob = LpProblem("F1_Fantasy_Team", LpMaximize)
+# Initialize Problem
+prob = LpProblem("F1_Fantasy_Multi_Solution", LpMaximize)
 
-# Define binary variables (1 if selected, 0 if not)
-driver_vars = [LpVariable(f"driver_{i}", cat="Binary") for i in range(len(drivers))]
-constructor_vars = [LpVariable(f"constructor_{i}", cat="Binary") for i in range(len(constructors))]
+# 2. VARIABLES
+d_vars = [LpVariable(f"d_{i}", cat="Binary") for i in range(len(drivers))]
+c_vars = [LpVariable(f"c_{i}", cat="Binary") for i in range(len(constructors))]
+# DRS Boost: One of the 5 selected drivers gets 2x points
+drs_vars = [LpVariable(f"drs_{i}", cat="Binary") for i in range(len(drivers))]
 
-# Objective: Maximize total expected points
-prob += lpSum([driver_points[i] * driver_vars[i] for i in range(len(drivers))] + 
-              [constructor_points[i] * constructor_vars[i] for i in range(len(constructors))])
+# 3. OBJECTIVE: Maximize total value (Points = Cost)
+# Note: DRS boost adds the value of the driver one extra time (Total = 2x)
+prob += lpSum([costs[i] * d_vars[i] for i in range(len(drivers))] + 
+              [costs[i] * drs_vars[i] for i in range(len(drivers))] + 
+              [c_costs[j] * c_vars[j] for j in range(len(constructors))])
 
-# Constraint 1: Total cost <= 100 million
-prob += lpSum([driver_costs[i] * driver_vars[i] for i in range(len(drivers))] + 
-              [constructor_costs[i] * constructor_vars[i] for i in range(len(constructors))]) <= 100
-
-# Constraint 2: Exactly 5 drivers
-prob += lpSum(driver_vars) == 5
-
-# Constraint 3: Exactly 2 constructors
-prob += lpSum(constructor_vars) == 2
-
-# Solve the problem
-prob.solve()
-
-# Output the selected team
-print("Your Optimized F1 Fantasy Team:")
-print("\nDrivers:")
-total_cost = 0
-total_points = 0
+# 4. CONSTRAINTS
+prob += lpSum([costs[i] * d_vars[i] for i in range(len(drivers))] + 
+              [c_costs[j] * c_vars[j] for j in range(len(constructors))]) <= 100
+prob += lpSum(d_vars) == 5
+prob += lpSum(c_vars) == 2
+prob += lpSum(drs_vars) == 1
 for i in range(len(drivers)):
-    if driver_vars[i].varValue == 1:
-        print(f"{drivers[i]} - Cost: ${driver_costs[i]}m, Points: {driver_points[i]}")
-        total_cost += driver_costs[i]
-        total_points += driver_points[i]
+    prob += drs_vars[i] <= d_vars[i] # Can only boost a selected driver
 
-print("\nConstructors:")
-for i in range(len(constructors)):
-    if constructor_vars[i].varValue == 1:
-        print(f"{constructors[i]} - Cost: ${constructor_costs[i]}m, Points: {constructor_points[i]}")
-        total_cost += constructor_costs[i]
-        total_points += constructor_points[i]
+# 5. LOOP TO FIND TOP 5 SOLUTIONS
+print(f"{'Rank':<5} | {'Total Value':<12} | {'Team Composition'}")
+print("-" * 80)
 
-print(f"\nTotal Cost: ${total_cost:.2f}m")
-print(f"Total Expected Points: {total_points}")
+for rank in range(1, 6):
+    prob.solve()
+    if prob.status != 1: break
+    
+    # Extract results
+    sel_drivers = [drivers[i] for i in range(len(drivers)) if d_vars[i].varValue == 1]
+    sel_consts = [constructors[j] for j in range(len(constructors)) if c_vars[j].varValue == 1]
+    drs_name = [drivers[i] for i in range(len(drivers)) if drs_vars[i].varValue == 1][0]
+    
+    total_val = sum(costs[drivers.index(d)] for d in sel_drivers) + \
+                sum(c_costs[constructors.index(c)] for c in sel_consts)
+    
+    print(f"#{rank:<4} | ${total_val:>10.1f}m | {', '.join(sel_drivers)} + {', '.join(sel_consts)} (DRS: {drs_name})")
+
+    # Add Integer Cut: Force the solver to find a DIFFERENT combination of 5 drivers + 2 constructors
+    # We sum the variables that are currently 1; next solution must have at least one change.
+    curr_d_idx = [i for i in range(len(drivers)) if d_vars[i].varValue == 1]
+    curr_c_idx = [j for j in range(len(constructors)) if c_vars[j].varValue == 1]
+    
+    prob += lpSum([d_vars[i] for i in curr_d_idx] + [c_vars[j] for j in curr_c_idx]) <= 6
